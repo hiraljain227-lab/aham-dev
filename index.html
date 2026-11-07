@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AHAM dev - storage persistence test (incomplete, not a release)</title>
+<style>body{font-family:system-ui;margin:2rem;max-width:40rem}code{background:#eee;padding:2px 6px}</style>
+</head>
+<body>
+<h1>AHAM - development storage test</h1>
+<p><strong>This is an incomplete development/test deployment of AHAM, not the app and not a release.</strong>
+Its only purpose is verifying that browser storage persists on this host during development.</p>
+<pre id="out">running...</pre>
+<script>
+const out = [];
+const SENT = 'aham-persist-sentinel-v1';
+(async () => {
+  const prevLs = localStorage.getItem(SENT);
+  localStorage.setItem(SENT, 'written-' + Date.now());
+  out.push('localStorage previous value: ' + prevLs + ' | wrote new value');
+  try {
+    const db = await new Promise((res, rej) => { const r = indexedDB.open('aham-persist-test', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    const prev = await new Promise((res) => { const tx = db.transaction('kv', 'readonly');
+      const g = tx.objectStore('kv').get(SENT); g.onsuccess = () => res(g.result ?? null); g.onerror = () => res(null); });
+    await new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').put('written-' + Date.now(), SENT); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+    out.push('IndexedDB previous value: ' + prev + ' | wrote new value');
+    out.push(prev === null && prevLs === null ? 'FIRST VISIT - reload the page to confirm persistence'
+      : 'PERSISTED ACROSS RELOAD (values from a previous visit were present)');
+  } catch (e) { out.push('IndexedDB ERROR: ' + e.message); }
+  document.getElementById('out').textContent = out.join('\n');
+})();
+</script>
+</body>
+</html>
